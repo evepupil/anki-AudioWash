@@ -35,13 +35,15 @@ audio_wash_player.start_audio_wash() (orchestrator)
 | `card_query.py` | Database queries | `CardQuery` class |
 | `audio_extractor.py` | Audio file extraction | `AudioExtractor` class |
 | `player_window.py` | Player UI | `AudioPlayerWindow` class (PyQt6 QDialog) |
+| `deck_selector.py` | Deck selection UI | `DeckSelectionDialog` class |
 
 ### Data Flow
 
-1. **Card Query**: Uses Anki search syntax (`added:1`, `rated:1`) to find today's new/reviewed cards
-2. **Audio Extraction**: Regex pattern `\[sound:(.*?)\]` extracts audio filenames from card HTML
-3. **Path Resolution**: Resolves full paths using `col.media.dir()`
-4. **Playback**: QMediaPlayer with QAudioOutput handles audio playback with shuffle and loop
+1. **Deck Selection**: User selects a specific deck or "All Decks" via dialog
+2. **Card Query**: Uses Anki search syntax (`added:1`, `rated:1`) with optional deck filter to find today's new/reviewed cards
+3. **Audio Extraction**: Regex pattern `\[sound:(.*?)\]` extracts audio filenames from card HTML
+4. **Path Resolution**: Resolves full paths using `col.media.dir()`
+5. **Playback**: QMediaPlayer with QAudioOutput handles audio playback with shuffle and loop
 
 ## Development Commands
 

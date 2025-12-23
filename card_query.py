@@ -5,23 +5,25 @@
 """
 
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 from anki.collection import Collection
 
 
 class CardQuery:
     """卡片查询类 - 负责从 Anki 数据库中查询特定卡片"""
 
-    def __init__(self, col: Collection, max_cards: int = 200):
+    def __init__(self, col: Collection, max_cards: int = 200, deck_id: Optional[int] = None):
         """
         初始化卡片查询器
 
         Args:
             col: Anki Collection 对象
             max_cards: 最大卡片数量限制
+            deck_id: 指定牌组 ID，None 表示所有牌组
         """
         self.col = col
         self.max_cards = max_cards
+        self.deck_id = deck_id
 
     def get_today_cards(self) -> List[int]:
         """
@@ -62,6 +64,12 @@ class CardQuery:
         # 查询今天添加的卡片
         # added:1 表示今天添加的卡片
         query = "added:1"
+
+        # 如果指定了牌组，添加牌组过滤
+        if self.deck_id is not None:
+            deck_name = self.col.decks.name(self.deck_id)
+            query = f'deck:"{deck_name}" {query}'
+
         card_ids = self.col.find_cards(query)
 
         return list(card_ids)
@@ -76,6 +84,12 @@ class CardQuery:
         # 查询今天复习过的卡片
         # rated:1 表示今天复习过的卡片
         query = "rated:1"
+
+        # 如果指定了牌组，添加牌组过滤
+        if self.deck_id is not None:
+            deck_name = self.col.decks.name(self.deck_id)
+            query = f'deck:"{deck_name}" {query}'
+
         card_ids = self.col.find_cards(query)
 
         return list(card_ids)

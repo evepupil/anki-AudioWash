@@ -11,6 +11,7 @@ from aqt.utils import showInfo, showWarning
 from .card_query import CardQuery
 from .audio_extractor import AudioExtractor
 from .player_window import AudioPlayerWindow
+from .deck_selector import DeckSelectionDialog
 
 
 # 全局变量：保存播放器窗口实例
@@ -30,12 +31,24 @@ def start_audio_wash():
         return
 
     try:
-        # 1. 查询今天的卡片
-        card_query = CardQuery(mw.col, max_cards=200)
+        # 显示牌组选择对话框
+        deck_dialog = DeckSelectionDialog(mw.col, parent=mw)
+        if deck_dialog.exec() != deck_dialog.DialogCode.Accepted:
+            # 用户取消了选择
+            return
+
+        # 获取选中的牌组
+        deck_id, deck_name = deck_dialog.get_selected_deck()
+
+        # 1. 查询今天的卡片（根据选择的牌组过滤）
+        card_query = CardQuery(mw.col, max_cards=200, deck_id=deck_id)
         card_ids = card_query.get_today_cards()
 
         if not card_ids:
-            showInfo("今天没有学习或复习任何卡片，无法启动播放器。")
+            if deck_id is None:
+                showInfo("今天没有学习或复习任何卡片，无法启动播放器。")
+            else:
+                showInfo(f"牌组「{deck_name}」中今天没有学习或复习任何卡片，无法启动播放器。")
             return
 
         # 获取卡片统计信息
@@ -46,16 +59,31 @@ def start_audio_wash():
         audio_files = audio_extractor.extract_audio_files(card_ids)
 
         if not audio_files:
-            showInfo(
-                f"找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
-                f"新学: {card_stats['new']} 张\n"
-                f"复习: {card_stats['reviewed']} 张\n\n"
-                f"请确保卡片中包含 [sound:...] 标签。"
-            )
+            if deck_id is None:
+                showInfo(
+                    f"找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
+                    f"新学: {card_stats['new']} 张\n"
+                    f"复习: {card_stats['reviewed']} 张\n\n"
+                    f"请确保卡片中包含 [sound:...] 标签。"
+                )
+            else:
+                showInfo(
+                    f"牌组「{deck_name}」中找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
+                    f"新学: {card_stats['new']} 张\n"
+                    f"复习: {card_stats['reviewed']} 张\n\n"
+                    f"请确保卡片中包含 [sound:...] 标签。"
+                )
             return
 
         # 3. 创建并显示播放器窗口（使用 None 作为 parent，创建独立窗口）
         player_window = AudioPlayerWindow(audio_files, parent=None)
+
+        # 设置窗口标题显示当前牌组
+        if deck_id is None:
+            player_window.setWindowTitle("Audio Wash Player - 全部牌组")
+        else:
+            player_window.setWindowTitle(f"Audio Wash Player - {deck_name}")
+
         player_window.show()
 
         # 不再显示启动信息弹框，直接启动播放器
