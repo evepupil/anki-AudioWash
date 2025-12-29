@@ -7,12 +7,21 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 from anki.collection import Collection
+from enum import Enum
+
+
+class StudyMode(Enum):
+    """学习模式枚举"""
+    NEW_ONLY = "new_only"  # 仅新学
+    REVIEW_ONLY = "review_only"  # 仅复习
+    COMBINED = "combined"  # 结合模式（新学 + 复习）
 
 
 class CardQuery:
     """卡片查询类 - 负责从 Anki 数据库中查询特定卡片"""
 
-    def __init__(self, col: Collection, max_cards: int = 200, deck_id: Optional[int] = None):
+    def __init__(self, col: Collection, max_cards: int = 200, deck_id: Optional[int] = None,
+                 study_mode: StudyMode = StudyMode.COMBINED, include_unlearned: bool = False):
         """
         初始化卡片查询器
 
@@ -20,27 +29,52 @@ class CardQuery:
             col: Anki Collection 对象
             max_cards: 最大卡片数量限制
             deck_id: 指定牌组 ID，None 表示所有牌组
+            study_mode: 学习模式（新学/复习/结合）
+            include_unlearned: 是否包含未学习的新卡片（仅在复习模式或结合模式下有效）
         """
         self.col = col
         self.max_cards = max_cards
         self.deck_id = deck_id
+        self.study_mode = study_mode
+        self.include_unlearned = include_unlearned
 
     def get_today_cards(self) -> List[int]:
         """
-        获取今天的所有相关卡片（新学 + 复习错 + 复习对）
+        获取今天的所有相关卡片（根据学习模式）
 
         Returns:
             卡片 ID 列表
         """
         card_ids = []
 
-        # 1. 获取今天新增的卡片（今天新学的）
-        new_cards = self._get_new_cards_today()
-        card_ids.extend(new_cards)
+        # 根据学习模式决定查询哪些卡片
+        if self.study_mode == StudyMode.NEW_ONLY:
+            # 仅新学模式：只查询今天新学的卡片
+            new_cards = self._get_new_cards_today()
+            card_ids.extend(new_cards)
 
-        # 2. 获取今天复习的卡片（包括复习错的和复习对的）
-        reviewed_cards = self._get_reviewed_cards_today()
-        card_ids.extend(reviewed_cards)
+        elif self.study_mode == StudyMode.REVIEW_ONLY:
+            # 仅复习模式：只查询今天复习的卡片
+            reviewed_cards = self._get_reviewed_cards_today()
+            card_ids.extend(reviewed_cards)
+
+            # 如果启用了"包含未学习的新卡片"，添加今天的新卡片
+            if self.include_unlearned:
+                unlearned_cards = self._get_unlearned_new_cards()
+                card_ids.extend(unlearned_cards)
+
+        else:  # StudyMode.COMBINED
+            # 结合模式：新学 + 复习
+            new_cards = self._get_new_cards_today()
+            card_ids.extend(new_cards)
+
+            reviewed_cards = self._get_reviewed_cards_today()
+            card_ids.extend(reviewed_cards)
+
+            # 如果启用了"包含未学习的新卡片"，添加未学习的新卡片
+            if self.include_unlearned:
+                unlearned_cards = self._get_unlearned_new_cards()
+                card_ids.extend(unlearned_cards)
 
         # 去重并限制数量
         card_ids = list(set(card_ids))
@@ -84,6 +118,26 @@ class CardQuery:
         # 查询今天复习过的卡片
         # rated:1 表示今天复习过的卡片
         query = "rated:1"
+
+        # 如果指定了牌组，添加牌组过滤
+        if self.deck_id is not None:
+            deck_name = self.col.decks.name(self.deck_id)
+            query = f'deck:"{deck_name}" {query}'
+
+        card_ids = self.col.find_cards(query)
+
+        return list(card_ids)
+
+    def _get_unlearned_new_cards(self) -> List[int]:
+        """
+        获取未学习的新卡片（is:new 且未被学习过）
+
+        Returns:
+            未学习的新卡片 ID 列表
+        """
+        # 查询新卡片（尚未学习的卡片）
+        # is:new 表示新卡片，-rated:1 表示今天未复习过
+        query = "is:new"
 
         # 如果指定了牌组，添加牌组过滤
         if self.deck_id is not None:

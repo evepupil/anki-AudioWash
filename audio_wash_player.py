@@ -8,7 +8,7 @@ from aqt import mw
 from aqt.qt import QAction
 from aqt.utils import showInfo, showWarning
 
-from .card_query import CardQuery
+from .card_query import CardQuery, StudyMode
 from .audio_extractor import AudioExtractor
 from .player_window import AudioPlayerWindow
 from .deck_selector import DeckSelectionDialog
@@ -40,9 +40,24 @@ def start_audio_wash():
         # 获取选中的牌组
         deck_id, deck_name = deck_dialog.get_selected_deck()
 
-        # 1. 查询今天的卡片（根据选择的牌组过滤）
-        card_query = CardQuery(mw.col, max_cards=200, deck_id=deck_id)
+        # 获取学习模式和选项
+        study_mode = deck_dialog.get_study_mode()
+        include_unlearned = deck_dialog.get_include_unlearned()
+
+        # 1. 查询今天的卡片（根据选择的牌组和学习模式过滤）
+        card_query = CardQuery(mw.col, max_cards=200, deck_id=deck_id,
+                               study_mode=study_mode, include_unlearned=include_unlearned)
         card_ids = card_query.get_today_cards()
+
+        # 生成模式描述文本
+        mode_texts = {
+            StudyMode.NEW_ONLY: "新学",
+            StudyMode.REVIEW_ONLY: "复习",
+            StudyMode.COMBINED: "新学+复习"
+        }
+        mode_text = mode_texts.get(study_mode, "未知")
+        if include_unlearned and study_mode != StudyMode.NEW_ONLY:
+            mode_text += "+预习"
 
         if not card_ids:
             if deck_id is None:
@@ -78,11 +93,11 @@ def start_audio_wash():
         # 3. 创建并显示播放器窗口（使用 None 作为 parent，创建独立窗口）
         player_window = AudioPlayerWindow(audio_files, parent=None)
 
-        # 设置窗口标题显示当前牌组
+        # 设置窗口标题显示当前牌组和模式
         if deck_id is None:
-            player_window.setWindowTitle("Audio Wash Player - 全部牌组")
+            player_window.setWindowTitle(f"Audio Wash Player - 全部牌组 [{mode_text}]")
         else:
-            player_window.setWindowTitle(f"Audio Wash Player - {deck_name}")
+            player_window.setWindowTitle(f"Audio Wash Player - {deck_name} [{mode_text}]")
 
         player_window.show()
 

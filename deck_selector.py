@@ -4,13 +4,15 @@
 提供选择牌组的界面
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QListWidget, QListWidgetItem
+    QLabel, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup,
+    QCheckBox, QGroupBox
 )
 from PyQt6.QtCore import Qt
 from anki.collection import Collection
+from .card_query import StudyMode
 
 
 class DeckSelectionDialog(QDialog):
@@ -27,12 +29,14 @@ class DeckSelectionDialog(QDialog):
         super().__init__(parent)
         self.col = col
         self.selected_deck_id = None  # None 表示"全部牌组"
+        self.study_mode = StudyMode.COMBINED  # 默认结合模式
+        self.include_unlearned = False  # 默认不包含未学习的新卡片
         self._init_ui()
 
     def _init_ui(self):
         """初始化用户界面"""
-        self.setWindowTitle("选择牌组")
-        self.setMinimumSize(400, 500)
+        self.setWindowTitle("选择牌组和学习模式")
+        self.setMinimumSize(450, 600)
 
         # 主布局
         main_layout = QVBoxLayout()
@@ -42,11 +46,6 @@ class DeckSelectionDialog(QDialog):
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
 
-        # 提示标签
-        hint_label = QLabel("提示：选择\"全部牌组\"将播放所有今天学习的卡片音频")
-        hint_label.setStyleSheet("color: gray; font-size: 12px;")
-        main_layout.addWidget(hint_label)
-
         # 牌组列表
         self.deck_list = QListWidget()
         self.deck_list.itemDoubleClicked.connect(self._on_deck_double_clicked)
@@ -54,6 +53,52 @@ class DeckSelectionDialog(QDialog):
 
         # 加载牌组列表
         self._load_decks()
+
+        # 学习模式选择组
+        mode_group = QGroupBox("学习模式")
+        mode_layout = QVBoxLayout()
+
+        # 创建单选按钮组
+        self.mode_button_group = QButtonGroup()
+
+        # 结合模式（默认）
+        self.combined_radio = QRadioButton("结合模式：今天新学 + 今天复习")
+        self.combined_radio.setChecked(True)
+        self.combined_radio.setToolTip("播放今天新学的卡片和今天复习的卡片")
+        self.mode_button_group.addButton(self.combined_radio, StudyMode.COMBINED.value[0])
+        mode_layout.addWidget(self.combined_radio)
+
+        # 学习模式
+        self.new_only_radio = QRadioButton("学习模式：仅今天新学")
+        self.new_only_radio.setToolTip("只播放今天新学的卡片")
+        self.mode_button_group.addButton(self.new_only_radio, StudyMode.NEW_ONLY.value[0])
+        mode_layout.addWidget(self.new_only_radio)
+
+        # 复习模式
+        self.review_only_radio = QRadioButton("复习模式：仅今天复习")
+        self.review_only_radio.setToolTip("只播放今天复习的卡片（之前学过的）")
+        self.mode_button_group.addButton(self.review_only_radio, StudyMode.REVIEW_ONLY.value[0])
+        mode_layout.addWidget(self.review_only_radio)
+
+        # 包含未学习新卡片的复选框
+        self.include_unlearned_checkbox = QCheckBox("包含未学习的新卡片")
+        self.include_unlearned_checkbox.setToolTip("勾选后将包含还未学习过的新卡片（预习）\n取消勾选只播放已经学习过的卡片")
+        self.include_unlearned_checkbox.setStyleSheet("margin-left: 20px; color: gray;")
+        mode_layout.addWidget(self.include_unlearned_checkbox)
+
+        # 连接单选按钮信号，更新复选框可用性
+        self.combined_radio.toggled.connect(self._update_unlearned_checkbox)
+        self.new_only_radio.toggled.connect(self._update_unlearned_checkbox)
+        self.review_only_radio.toggled.connect(self._update_unlearned_checkbox)
+
+        mode_group.setLayout(mode_layout)
+        main_layout.addWidget(mode_group)
+
+        # 提示标签
+        hint_label = QLabel("提示：\n• 学习模式 - 只听今天新学的单词\n• 复习模式 - 只听今天复习的单词\n• 结合模式 - 听今天新学+复习的单词\n• 勾选\"包含未学习\"可以预习还未学习的新单词")
+        hint_label.setStyleSheet("color: gray; font-size: 11px; padding: 5px;")
+        hint_label.setWordWrap(True)
+        main_layout.addWidget(hint_label)
 
         # 按钮布局
         button_layout = QHBoxLayout()
@@ -108,7 +153,16 @@ class DeckSelectionDialog(QDialog):
         """双击牌组时直接确认选择"""
         self.accept()
 
-    def get_selected_deck(self) -> tuple[Optional[int], str]:
+    def _update_unlearned_checkbox(self):
+        """更新\"包含未学习的新卡片\"复选框的可用性"""
+        # 只有在\"学习模式\"时禁用此复选框（因为学习模式本身就是新学的）
+        is_new_only = self.new_only_radio.isChecked()
+        self.include_unlearned_checkbox.setEnabled(not is_new_only)
+
+        if is_new_only:
+            self.include_unlearned_checkbox.setChecked(False)
+
+    def get_selected_deck(self) -> Tuple[Optional[int], str]:
         """
         获取选中的牌组
 
@@ -122,3 +176,26 @@ class DeckSelectionDialog(QDialog):
             deck_name = current_item.text().strip().replace("📚 ", "").replace("📖 ", "")
             return deck_id, deck_name
         return None, "全部牌组"
+
+    def get_study_mode(self) -> StudyMode:
+        """
+        获取选中的学习模式
+
+        Returns:
+            StudyMode 枚举值
+        """
+        if self.new_only_radio.isChecked():
+            return StudyMode.NEW_ONLY
+        elif self.review_only_radio.isChecked():
+            return StudyMode.REVIEW_ONLY
+        else:
+            return StudyMode.COMBINED
+
+    def get_include_unlearned(self) -> bool:
+        """
+        获取是否包含未学习的新卡片
+
+        Returns:
+            是否包含未学习的新卡片
+        """
+        return self.include_unlearned_checkbox.isChecked()
