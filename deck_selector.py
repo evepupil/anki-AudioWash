@@ -65,19 +65,19 @@ class DeckSelectionDialog(QDialog):
         self.combined_radio = QRadioButton("结合模式：今天新学 + 今天复习")
         self.combined_radio.setChecked(True)
         self.combined_radio.setToolTip("播放今天新学的卡片和今天复习的卡片")
-        self.mode_button_group.addButton(self.combined_radio, StudyMode.COMBINED.value[0])
+        self.mode_button_group.addButton(self.combined_radio, 0)
         mode_layout.addWidget(self.combined_radio)
 
         # 学习模式
         self.new_only_radio = QRadioButton("学习模式：仅今天新学")
         self.new_only_radio.setToolTip("只播放今天新学的卡片")
-        self.mode_button_group.addButton(self.new_only_radio, StudyMode.NEW_ONLY.value[0])
+        self.mode_button_group.addButton(self.new_only_radio, 1)
         mode_layout.addWidget(self.new_only_radio)
 
         # 复习模式
         self.review_only_radio = QRadioButton("复习模式：仅今天复习")
         self.review_only_radio.setToolTip("只播放今天复习的卡片（之前学过的）")
-        self.mode_button_group.addButton(self.review_only_radio, StudyMode.REVIEW_ONLY.value[0])
+        self.mode_button_group.addButton(self.review_only_radio, 2)
         mode_layout.addWidget(self.review_only_radio)
 
         # 包含未学习新卡片的复选框
