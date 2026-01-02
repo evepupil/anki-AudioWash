@@ -4,7 +4,7 @@
 提供选择牌组的界面
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup,
@@ -28,7 +28,7 @@ class DeckSelectionDialog(QDialog):
         """
         super().__init__(parent)
         self.col = col
-        self.selected_deck_id = None  # None 表示"全部牌组"
+        self.selected_deck_ids = []  # 选中的牌组 ID 列表，空列表表示"全部牌组"
         self.study_mode = StudyMode.COMBINED  # 默认结合模式
         self.include_unlearned = False  # 默认不包含未学习的新卡片
         self._init_ui()
@@ -42,12 +42,13 @@ class DeckSelectionDialog(QDialog):
         main_layout = QVBoxLayout()
 
         # 标题标签
-        title_label = QLabel("请选择要播放的牌组：")
+        title_label = QLabel("请选择要播放的牌组（支持多选）：")
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
 
-        # 牌组列表
+        # 牌组列表（启用多选）
         self.deck_list = QListWidget()
+        self.deck_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
         self.deck_list.itemDoubleClicked.connect(self._on_deck_double_clicked)
         main_layout.addWidget(self.deck_list)
 
@@ -95,7 +96,7 @@ class DeckSelectionDialog(QDialog):
         main_layout.addWidget(mode_group)
 
         # 提示标签
-        hint_label = QLabel("提示：\n• 学习模式 - 只听今天新学的单词\n• 复习模式 - 只听今天复习的单词\n• 结合模式 - 听今天新学+复习的单词\n• 勾选\"包含未学习\"可以预习还未学习的新单词")
+        hint_label = QLabel("提示：\n• 按住 Ctrl 点击可多选牌组\n• 不选择任何牌组 = 全部牌组\n• 学习模式 - 只听今天新学的单词\n• 复习模式 - 只听今天复习的单词\n• 结合模式 - 听今天新学+复习的单词\n• 勾选\"包含未学习\"可以预习还未学习的新单词")
         hint_label.setStyleSheet("color: gray; font-size: 11px; padding: 5px;")
         hint_label.setWordWrap(True)
         main_layout.addWidget(hint_label)
@@ -119,11 +120,6 @@ class DeckSelectionDialog(QDialog):
 
     def _load_decks(self):
         """加载牌组列表"""
-        # 添加"全部牌组"选项
-        all_decks_item = QListWidgetItem("📚 全部牌组")
-        all_decks_item.setData(Qt.ItemDataRole.UserRole, None)  # None 表示全部
-        self.deck_list.addItem(all_decks_item)
-
         # 获取所有牌组
         deck_manager = self.col.decks
         all_decks = deck_manager.all_names_and_ids()
@@ -146,9 +142,6 @@ class DeckSelectionDialog(QDialog):
             item.setToolTip(deck.name)  # 显示完整路径作为提示
             self.deck_list.addItem(item)
 
-        # 默认选中"全部牌组"
-        self.deck_list.setCurrentRow(0)
-
     def _on_deck_double_clicked(self, item):
         """双击牌组时直接确认选择"""
         self.accept()
@@ -162,20 +155,38 @@ class DeckSelectionDialog(QDialog):
         if is_new_only:
             self.include_unlearned_checkbox.setChecked(False)
 
-    def get_selected_deck(self) -> Tuple[Optional[int], str]:
+    def get_selected_decks(self) -> Tuple[List[int], str]:
         """
-        获取选中的牌组
+        获取选中的牌组列表
 
         Returns:
-            (deck_id, deck_name) 元组
-            deck_id 为 None 表示"全部牌组"
+            (deck_ids, deck_names) 元组
+            deck_ids 为空列表表示"全部牌组"
         """
-        current_item = self.deck_list.currentItem()
-        if current_item:
-            deck_id = current_item.data(Qt.ItemDataRole.UserRole)
-            deck_name = current_item.text().strip().replace("📚 ", "").replace("📖 ", "")
-            return deck_id, deck_name
-        return None, "全部牌组"
+        selected_items = self.deck_list.selectedItems()
+
+        if not selected_items:
+            # 没有选择任何牌组，返回空列表表示全部牌组
+            return [], "全部牌组"
+
+        deck_ids = []
+        deck_names = []
+
+        for item in selected_items:
+            deck_id = item.data(Qt.ItemDataRole.UserRole)
+            deck_name = item.text().strip().replace("📖 ", "")
+            deck_ids.append(deck_id)
+            deck_names.append(deck_name)
+
+        # 生成显示名称
+        if len(deck_names) == 1:
+            display_name = deck_names[0]
+        elif len(deck_names) <= 3:
+            display_name = "、".join(deck_names)
+        else:
+            display_name = f"{deck_names[0]}、{deck_names[1]} 等 {len(deck_names)} 个牌组"
+
+        return deck_ids, display_name
 
     def get_study_mode(self) -> StudyMode:
         """

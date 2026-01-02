@@ -20,7 +20,7 @@ class StudyMode(Enum):
 class CardQuery:
     """卡片查询类 - 负责从 Anki 数据库中查询特定卡片"""
 
-    def __init__(self, col: Collection, max_cards: int = 200, deck_id: Optional[int] = None,
+    def __init__(self, col: Collection, max_cards: int = 200, deck_ids: Optional[List[int]] = None,
                  study_mode: StudyMode = StudyMode.COMBINED, include_unlearned: bool = False):
         """
         初始化卡片查询器
@@ -28,13 +28,13 @@ class CardQuery:
         Args:
             col: Anki Collection 对象
             max_cards: 最大卡片数量限制
-            deck_id: 指定牌组 ID，None 表示所有牌组
+            deck_ids: 指定牌组 ID 列表，None 或空列表表示所有牌组
             study_mode: 学习模式（新学/复习/结合）
             include_unlearned: 是否包含未学习的新卡片（仅在复习模式或结合模式下有效）
         """
         self.col = col
         self.max_cards = max_cards
-        self.deck_id = deck_id
+        self.deck_ids = deck_ids if deck_ids else []
         self.study_mode = study_mode
         self.include_unlearned = include_unlearned
 
@@ -100,9 +100,19 @@ class CardQuery:
         query = "added:1"
 
         # 如果指定了牌组，添加牌组过滤
-        if self.deck_id is not None:
-            deck_name = self.col.decks.name(self.deck_id)
-            query = f'deck:"{deck_name}" {query}'
+        if self.deck_ids:
+            # 构建多个牌组的 OR 查询
+            deck_queries = []
+            for deck_id in self.deck_ids:
+                deck_name = self.col.decks.name(deck_id)
+                deck_queries.append(f'deck:"{deck_name}"')
+
+            # 使用括号和 OR 连接多个牌组
+            if len(deck_queries) == 1:
+                query = f'{deck_queries[0]} {query}'
+            else:
+                decks_query = " OR ".join(deck_queries)
+                query = f'({decks_query}) {query}'
 
         card_ids = self.col.find_cards(query)
 
@@ -120,9 +130,19 @@ class CardQuery:
         query = "rated:1"
 
         # 如果指定了牌组，添加牌组过滤
-        if self.deck_id is not None:
-            deck_name = self.col.decks.name(self.deck_id)
-            query = f'deck:"{deck_name}" {query}'
+        if self.deck_ids:
+            # 构建多个牌组的 OR 查询
+            deck_queries = []
+            for deck_id in self.deck_ids:
+                deck_name = self.col.decks.name(deck_id)
+                deck_queries.append(f'deck:"{deck_name}"')
+
+            # 使用括号和 OR 连接多个牌组
+            if len(deck_queries) == 1:
+                query = f'{deck_queries[0]} {query}'
+            else:
+                decks_query = " OR ".join(deck_queries)
+                query = f'({decks_query}) {query}'
 
         card_ids = self.col.find_cards(query)
 
@@ -140,9 +160,19 @@ class CardQuery:
         query = "is:new"
 
         # 如果指定了牌组，添加牌组过滤
-        if self.deck_id is not None:
-            deck_name = self.col.decks.name(self.deck_id)
-            query = f'deck:"{deck_name}" {query}'
+        if self.deck_ids:
+            # 构建多个牌组的 OR 查询
+            deck_queries = []
+            for deck_id in self.deck_ids:
+                deck_name = self.col.decks.name(deck_id)
+                deck_queries.append(f'deck:"{deck_name}"')
+
+            # 使用括号和 OR 连接多个牌组
+            if len(deck_queries) == 1:
+                query = f'{deck_queries[0]} {query}'
+            else:
+                decks_query = " OR ".join(deck_queries)
+                query = f'({decks_query}) {query}'
 
         card_ids = self.col.find_cards(query)
 

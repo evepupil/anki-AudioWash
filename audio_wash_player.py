@@ -37,15 +37,15 @@ def start_audio_wash():
             # 用户取消了选择
             return
 
-        # 获取选中的牌组
-        deck_id, deck_name = deck_dialog.get_selected_deck()
+        # 获取选中的牌组（支持多选）
+        deck_ids, deck_names = deck_dialog.get_selected_decks()
 
         # 获取学习模式和选项
         study_mode = deck_dialog.get_study_mode()
         include_unlearned = deck_dialog.get_include_unlearned()
 
         # 1. 查询今天的卡片（根据选择的牌组和学习模式过滤）
-        card_query = CardQuery(mw.col, max_cards=200, deck_id=deck_id,
+        card_query = CardQuery(mw.col, max_cards=200, deck_ids=deck_ids,
                                study_mode=study_mode, include_unlearned=include_unlearned)
         card_ids = card_query.get_today_cards()
 
@@ -60,10 +60,10 @@ def start_audio_wash():
             mode_text += "+预习"
 
         if not card_ids:
-            if deck_id is None:
+            if not deck_ids:
                 showInfo("今天没有学习或复习任何卡片，无法启动播放器。")
             else:
-                showInfo(f"牌组「{deck_name}」中今天没有学习或复习任何卡片，无法启动播放器。")
+                showInfo(f"牌组「{deck_names}」中今天没有学习或复习任何卡片，无法启动播放器。")
             return
 
         # 获取卡片统计信息
@@ -74,7 +74,7 @@ def start_audio_wash():
         audio_files = audio_extractor.extract_audio_files(card_ids)
 
         if not audio_files:
-            if deck_id is None:
+            if not deck_ids:
                 showInfo(
                     f"找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
                     f"新学: {card_stats['new']} 张\n"
@@ -83,7 +83,7 @@ def start_audio_wash():
                 )
             else:
                 showInfo(
-                    f"牌组「{deck_name}」中找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
+                    f"牌组「{deck_names}」中找到 {card_stats['total']} 张卡片，但没有找到任何音频文件。\n"
                     f"新学: {card_stats['new']} 张\n"
                     f"复习: {card_stats['reviewed']} 张\n\n"
                     f"请确保卡片中包含 [sound:...] 标签。"
@@ -94,10 +94,10 @@ def start_audio_wash():
         player_window = AudioPlayerWindow(audio_files, parent=None)
 
         # 设置窗口标题显示当前牌组和模式
-        if deck_id is None:
+        if not deck_ids:
             player_window.setWindowTitle(f"Audio Wash Player - 全部牌组 [{mode_text}]")
         else:
-            player_window.setWindowTitle(f"Audio Wash Player - {deck_name} [{mode_text}]")
+            player_window.setWindowTitle(f"Audio Wash Player - {deck_names} [{mode_text}]")
 
         player_window.show()
 
